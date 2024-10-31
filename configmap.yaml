@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: health-check-config
+  namespace: healthbot
+data:
+  HEALTH_CHECK_DOMAINS: |
+    https://check.this.domain.com
+  CHECK_INTERVAL: "60"
+  STATUS_REPORT_INTERVAL: "3600"
+  TELEGRAM_TOKEN: "1234:mitoken"
+  TELEGRAM_CHAT_ID: "1234"

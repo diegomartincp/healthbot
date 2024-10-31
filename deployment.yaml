@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check-deployment
+  namespace: healthbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-check
+  template:
+    metadata:
+      labels:
+        app: health-check
+    spec:
+      hostAliases:
+        - ip: "1.1.1.1"
+          hostnames:
+            - host.example
+      containers:
+        - name: health-check
+          image: diegomartinc/healthbot:latest
+          env:
+            #- name: http_proxy
+            #  value: "http://1.2.3.4:1234"
+            #- name: https_proxy
+            #  value: "http://1.2.3.4:1234"
+            #- name: NO_PROXY
+            #  value: "domain.example"
+            - name: HEALTH_CHECK_DOMAINS
+              valueFrom:
+                configMapKeyRef:
+                  name: health-check-config
+                  key: HEALTH_CHECK_DOMAINS
+            - name: CHECK_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: health-check-config
+                  key: CHECK_INTERVAL
+            - name: TELEGRAM_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  name: health-check-config
+                  key: TELEGRAM_TOKEN
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: health-check-config
+                  key: TELEGRAM_CHAT_ID
