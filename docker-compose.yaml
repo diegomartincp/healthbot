@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  health-check:
+    image: diegomartinc/healthbot:proxy
+    container_name: health-check
+    environment:
+      - http_proxy=http://123.123.123.123:1234
+      - https_proxy=http://123.123.123.123:1234
+      - NO_PROXY=host.com
+      - HEALTH_CHECK_DOMAINS=host.to.check
+      - CHECK_INTERVAL=60
+      - STATUS_REPORT_INTERVAL=3600
+      - TELEGRAM_TOKEN=1234:mitoken
+      - TELEGRAM_CHAT_ID=12345567
+    networks:
+      - health-net
+    extra_hosts:
+      - "mi.host.example:123.123.123.123"
+
+networks:
+  health-net:
+    driver: bridge
