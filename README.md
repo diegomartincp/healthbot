@@ -14,28 +14,36 @@ HealthBot lets you supervise the accessibility of your websites (or any public d
 - Your Telegram chat ID (can be obtained with @userinfobot).
 
 ### 🖥️ Quickstart with Docker
-
+``` shell
+docker build -t local/healthbot:latest .
+```
 ``` shell
 docker run \
+  --name health-check \
+  --network health-net \
   -e HEALTH_CHECK_DOMAINS="https://www.google.com" \
+  -e CHECK_INTERVAL=60 \
+  -e STATUS_REPORT_INTERVAL=86400 \
   -e TELEGRAM_TOKEN="<your_bot_token>" \
   -e TELEGRAM_CHAT_ID="<your_chat_id>" \
-  diegomartinc/healthbot:proxy`
+  local/healthbot:latest
 ```
 
 Or with Docker Compose:
-
+(After modifying the docker-compose.yml file with your bot token and chat ID)
 ``` shell
 docker-compose up -d
 ```
 
 The bot will regularly check the specified domains and send a Telegram message if any become unreachable.
 
-## ⚙️ Configuration
+## ⚙️ Environment variables usage
 Set the following environment variables:
-- HEALTH_CHECK_DOMAINS — Comma-separated list of domains to monitor (https://domain1.com,https://domain2.com)
-- TELEGRAM_TOKEN — Token from @BotFather
-- TELEGRAM_CHAT_ID — Your Telegram chat ID (use @userinfobot to find yours)
+- HEALTH_CHECK_DOMAINS - Comma-separated list of domains to monitor (https://domain1.com,https://domain2.com)
+- TELEGRAM_TOKEN - Token from @BotFather
+- TELEGRAM_CHAT_ID - Your Telegram chat ID (use @userinfobot to find yours)
+- STATUS_REPORT_INTERVAL -Time (in seconds) between periodic summary reports sent to Telegram. Default is once per day
+- CHECK_INTERVAL - Time (in seconds) between individual domain checks. Default is 60 seconds.
 
 ## 🤔 How it works
 HealthBot periodically checks the availability (HTTP status) of each configured domain.
