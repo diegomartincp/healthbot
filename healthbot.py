@@ -4,149 +4,148 @@ import time
 import schedule
 from threading import Thread
 
-# Cargar configuraciones desde variables de entorno
-# Cargar configuraciones desde variables de entorno
+# Load configurations from environment variables
 domains = set(os.getenv("HEALTH_CHECK_DOMAINS", "").split(",")) if os.getenv("HEALTH_CHECK_DOMAINS") else set()
 telegram_token = os.getenv("TELEGRAM_TOKEN")
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-check_interval = int(os.getenv("CHECK_INTERVAL", 60))  # Default: 60 segundos
-status_report_interval = int(os.getenv("STATUS_REPORT_INTERVAL", 3600))  # Default: 3600 segundos
+check_interval = int(os.getenv("CHECK_INTERVAL", 60))  # Default: 60 seconds
+status_report_interval = int(os.getenv("STATUS_REPORT_INTERVAL", 3600))  # Default: 3600 seconds
 
-# Variable para controlar el modo de eliminación
+# Variable to control removal mode
 removal_in_progress = False
 
-# Función para enviar mensajes de Telegram
+# Function to send Telegram messages
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     payload = {"chat_id": telegram_chat_id, "text": message}
     try:
         response = requests.post(url, json=payload, verify=False)
         response.raise_for_status()
-        print(f"Mensaje enviado a Telegram: {message}")
+        print(f"Message sent to Telegram: {message}")
     except requests.exceptions.RequestException as e:
-        print(f"Error al enviar mensaje de Telegram: {e}")
+        print(f"Error sending message to Telegram: {e}")
 
-# Función para verificar la salud de un dominio
+# Function to check the health of a domain
 def check_health(domain):
     try:
-        print(f"Haciendo PING a {domain}")
+        print(f"Pinging {domain}")
         response = requests.get(domain, timeout=5, verify=False)
         return (domain, response.status_code == 200)
     except requests.exceptions.RequestException as e:
         return (domain, False, str(e))
 
-# Función para ejecutar las verificaciones de salud
+# Function to run health checks
 def health_check():
     for domain in domains:
         if domain:
             result = check_health(domain)
-            # Solo enviar mensaje en caso de error
-            if not result[1]:  # Si el chequeo falla
+            # Only send a message in case of error
+            if not result[1]:  # If the check fails
                 if len(result) == 3:
-                    send_telegram_message(f"❌ Error: No se pudo conectar a {result[0]}. \n{result[2]}")
+                    send_telegram_message(f"❌ Error: Could not connect to {result[0]}.\n{result[2]}")
                 else:
-                    send_telegram_message(f"❌ {result[0]} falló con estado: {result[1]}")
+                    send_telegram_message(f"❌ {result[0]} failed with status: {result[1]}")
 
-# Función para reportar el estado de todos los dominios
+# Function to report the status of all domains
 def status_report():
-    report = "Estado de dominios:\n"
+    report = "Domain status:\n"
     for domain in domains:
         result = check_health(domain)
-        if result[1]:  # Si está activo
-            report += f"✅ {result[0]} está activo.\n"
+        if result[1]:  # If it's active
+            report += f"✅ {result[0]} is up.\n"
         else:
             if len(result) == 3:
-                report += f"❌ {result[0]} falló: {result[2]}\n"
+                report += f"❌ {result[0]} failed: {result[2]}\n"
             else:
-                report += f"❌ {result[0]} falló con estado: {result[1]}\n"
+                report += f"❌ {result[0]} failed with status: {result[1]}\n"
     send_telegram_message(report)
 
-# Función para manejar comandos de Telegram
+# Function to handle Telegram commands
 def handle_command(command, user_id):
     global check_interval, status_report_interval, removal_in_progress
     parts = command.split()
     
     if len(parts) == 0:
-        send_telegram_message("⚠️ Comando no reconocido. Usa: /help para ver los comandos disponibles\n")
+        send_telegram_message("⚠️ Unrecognized command. Use /help to see the available commands.\n")
         return
 
     if parts[0] == "/set_check_interval":
         if len(parts) < 2:
-            send_telegram_message("⚠️ Por favor, proporciona un número válido para el intervalo de verificación.")
+            send_telegram_message("⚠️ Please provide a valid number for the health check interval.")
             return
         try:
             check_interval = int(parts[1])
             schedule.clear('check')
             schedule.every(check_interval).seconds.do(health_check).tag('check')
-            send_telegram_message(f"🕒 Intervalo de verificación de salud ajustado a {check_interval} segundos.")
+            send_telegram_message(f"🕒 Health check interval set to {check_interval} seconds.")
         except ValueError:
-            send_telegram_message("⚠️ Por favor, proporciona un número válido para el intervalo.")
-        return  # Detener la ejecución aquí
+            send_telegram_message("⚠️ Please provide a valid number for the interval.")
+        return  # Stop execution here
 
     elif parts[0] == "/set_report_interval":
         if len(parts) < 2:
-            send_telegram_message("⚠️ Por favor, proporciona un número válido para el intervalo de reporte.")
+            send_telegram_message("⚠️ Please provide a valid number for the report interval.")
             return
         try:
             status_report_interval = int(parts[1])
             schedule.clear('report')
             schedule.every(status_report_interval).seconds.do(status_report).tag('report')
-            send_telegram_message(f"🕒 Intervalo de reporte ajustado a {status_report_interval} segundos.")
+            send_telegram_message(f"🕒 Report interval set to {status_report_interval} seconds.")
         except ValueError:
-            send_telegram_message("⚠️ Por favor, proporciona un número válido para el intervalo.")
-        return  # Detener la ejecución aquí
+            send_telegram_message("⚠️ Please provide a valid number for the interval.")
+        return  # Stop execution here
 
     elif parts[0] == "/add_domain":
         if len(parts) < 2:
-            send_telegram_message("⚠️ Por favor, proporciona un dominio para agregar.")
+            send_telegram_message("⚠️ Please provide a domain to add.")
             return
         domain = parts[1]
         domains.add(domain)
-        send_telegram_message(f"✅ Dominio agregado: {domain}")
-        return  # Detener la ejecución aquí
+        send_telegram_message(f"✅ Domain added: {domain}")
+        return  # Stop execution here
 
     elif parts[0] == "/remove_domain":
         if not domains:
-            send_telegram_message("⚠️ No hay dominios para eliminar.")
+            send_telegram_message("⚠️ There are no domains to remove.")
             return
         domains_list = "\n".join([f"{i + 1}. {domain}" for i, domain in enumerate(domains)])
-        send_telegram_message(f"🗑️ Selecciona un dominio para eliminar:\n{domains_list}\nPor favor, escribe el número correspondiente.")
-        removal_in_progress = True  # Inicia el proceso de eliminación
-        return  # Solicitar el número de dominio para eliminar
+        send_telegram_message(f"🗑️ Select a domain to remove:\n{domains_list}\nPlease type the corresponding number.")
+        removal_in_progress = True  # Start the removal process
+        return  # Await number to remove domain
 
     elif parts[0] == "/status":
-        send_telegram_message("🔄 Generando reporte de estado de los dominios...")
+        send_telegram_message("🔄 Generating status report of the domains...")
         status_report()
-        return  # Detener la ejecución aquí
+        return  # Stop execution here
 
     elif parts[0] == "/config":
         config_message = (
-            f"🛠️ Configuración actual:\n"
-            f"Intervalo de verificación: {check_interval} segundos\n"
-            f"Intervalo de reporte: {status_report_interval} segundos\n\n"
-            f"Dominios a revisar:\n" + "\n".join(domains)
+            f"🛠️ Current configuration:\n"
+            f"Health check interval: {check_interval} seconds\n"
+            f"Report interval: {status_report_interval} seconds\n\n"
+            f"Domains to monitor:\n" + "\n".join(domains)
         )
         send_telegram_message(config_message)
-        return  # Detener la ejecución aquí
+        return  # Stop execution here
 
     elif parts[0] == "/help":
         help_message = (
-            "ℹ️ **Comandos disponibles:**\n"
-            "/set_check_interval <segundos> - Establece el intervalo de verificación de salud.\n"
-            "/set_report_interval <segundos> - Establece el intervalo para el reporte de estado.\n"
-            "/add_domain <dominio> - Agrega un dominio a la lista de chequeo.\n"
-            "/remove_domain - Elimina un dominio de la lista de chequeo. Responde con el número correspondiente.\n"
-            "/config - Muestra la configuración actual y la lista de dominios.\n"
-            "/status - Genera un reporte del estado actual de todos los dominios.\n"
-            "/help - Muestra esta lista de comandos y su descripción."
+            "ℹ️ **Available commands:**\n"
+            "/set_check_interval <seconds> - Set the health check interval.\n"
+            "/set_report_interval <seconds> - Set the interval for status reports.\n"
+            "/add_domain <domain> - Add a domain to the check list.\n"
+            "/remove_domain - Remove a domain from the check list. Reply with the corresponding number.\n"
+            "/config - Show the current configuration and domain list.\n"
+            "/status - Generate the current status report for all domains.\n"
+            "/help - Show this list of commands and their descriptions."
         )
         send_telegram_message(help_message)
-        return  # Detener la ejecución aquí
+        return  # Stop execution here
 
-    # Si el comando no se reconoce, enviamos el mensaje de error
-    send_telegram_message("⚠️ No te he entendido. Usa: /help para ver los comandos disponibles\n")
+    # If the command is not recognized, send an error message
+    send_telegram_message("⚠️ I didn't understand you. Use: /help to see the available commands.\n")
 
-# Función para verificar mensajes entrantes
+# Function to check incoming messages
 def listen_for_commands():
     global removal_in_progress
     offset = None
@@ -160,48 +159,47 @@ def listen_for_commands():
             for result in data["result"]:
                 offset = result["update_id"] + 1
                 if "text" in result["message"]:
-                    user_id = result["message"]["from"]["id"]  # Identifica al usuario
+                    user_id = result["message"]["from"]["id"]  # Identify the user
                     if removal_in_progress:
                         try:
                             domain_index = int(result["message"]["text"]) - 1
                             domain_to_remove = list(domains)[domain_index]
                             domains.remove(domain_to_remove)
-                            send_telegram_message(f"✅ Dominio eliminado: {domain_to_remove}")
-                            removal_in_progress = False  # Finaliza el proceso de eliminación
+                            send_telegram_message(f"✅ Domain removed: {domain_to_remove}")
+                            removal_in_progress = False  # End removal process
                         except (ValueError, IndexError):
-                            send_telegram_message("⚠️ Selección no válida. Por favor, elige un número de la lista.")
+                            send_telegram_message("⚠️ Invalid selection. Please choose a number from the list.")
                     else:
                         handle_command(result["message"]["text"], user_id)
         except requests.exceptions.RequestException as e:
-            print(f"Error al recibir comandos de Telegram: {e}")
+            print(f"Error receiving commands from Telegram: {e}")
         time.sleep(1)
 
-# Configurar las tareas de Schedule
+# Set up scheduled tasks
 schedule.every(check_interval).seconds.do(health_check).tag('check')
 schedule.every(status_report_interval).seconds.do(status_report).tag('report')
 
-# Mensaje de bienvenida y reporte inicial
-
+# Welcome message and initial report
 if len(domains) > 0:
     domains_list = "\n".join(f" - {domain}" for domain in domains)
-    welcome_message = (f"👋 ¡Bienvenido al HealthBot! Comenzando chequeo de dominios...\n\n"
-                       f"🔍 Este bot verifica la salud de los siguientes dominios:\n{domains_list}\n\n"
-                       f"🕒 Intervalo de verificación actual: {check_interval} segundos.\n"
-                       f"🕒 Intervalo de reporte actual: {status_report_interval} segundos.")
+    welcome_message = (f"👋 Welcome to HealthBot! Starting domain check...\n\n"
+                       f"🔍 This bot monitors the health of the following domains:\n{domains_list}\n\n"
+                       f"🕒 Current health check interval: {check_interval} seconds.\n"
+                       f"🕒 Current report interval: {status_report_interval} seconds.")
 else:
-    welcome_message = (f"👋 ¡Bienvenido al HealthBot! Comenzando chequeo de dominios...\n\n"
-                       f"🔍 Este bot verifica la salud de los dominios configurados y te notifica sobre su estado.\n"
-                       f"⚠️ Actualmente no hay dominios configurados para revisar. Usa el comando /add_domain para agregar dominios.\n"
-                       f"🕒 Intervalo de verificación actual: {check_interval} segundos.\n"
-                       f"🕒 Intervalo de reporte actual: {status_report_interval} segundos.")
+    welcome_message = (f"👋 Welcome to HealthBot! Starting domain check...\n\n"
+                       f"🔍 This bot monitors the health of configured domains and notifies you of their status.\n"
+                       f"⚠️ There are currently no domains configured for checking. Use the /add_domain command to add domains.\n"
+                       f"🕒 Current health check interval: {check_interval} seconds.\n"
+                       f"🕒 Current report interval: {status_report_interval} seconds.")
 
 send_telegram_message(welcome_message)
 
-# Iniciar la escucha de comandos
+# Start listening for commands
 thread = Thread(target=listen_for_commands)
 thread.start()
 
-# Iniciar el loop de schedule
+# Start the schedule loop
 while True:
     schedule.run_pending()
     time.sleep(1)
